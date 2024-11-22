@@ -74,13 +74,13 @@ template<class T> struct task
       private:
         task<T> ret;
       public:
-        task<T> get_return_object() { return ret; }
-        std::suspend_never initial_suspend() { return {}; }
-        std::suspend_never final_suspend() noexcept { return {}; }
+        task<T> get_return_object() const noexcept { return ret; }
+        std::suspend_never initial_suspend() const noexcept { return {}; }
+        std::suspend_never final_suspend() const noexcept { return {}; }
         void return_value(T res) {
           ret.set_result(res);
         }
-        void unhandled_exception() {}
+        void unhandled_exception() const noexcept {}
     };
 
 
@@ -117,29 +117,16 @@ template<class T> struct task
       return internal->result.has_value();
     }
 
-    void set_result(const T& t) {
-      internal->result = t;
+    template<class U> void set_result(U&& t) {
+      internal->result = std::forward<U>(t);
       internal->hasResult.release();
       internal->counter--;
       resume();
     }
 
-    void set_result(T&& t) {
-      internal->result = std::move(t);
-      internal->hasResult.release();
-      internal->counter--;
-      resume();
-    }
-
-    void set_handle(const std::coroutine_handle<>& handle,std::shared_ptr<dispatcher> disp) {
-      internal->handle = handle;
-      this->disp = disp;
-      internal->counter--;
-      resume();
-    }
-
-    void set_handle(std::coroutine_handle<>&& handle,std::shared_ptr<dispatcher> disp) {
-      internal->handle = std::move(handle);
+    template<class    U>
+    void set_handle(U&& handle,std::shared_ptr<dispatcher> disp) {
+      internal->handle = std::forward<U>(handle);
       this->disp = disp;
       internal->counter--;
       resume();
