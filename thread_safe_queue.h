@@ -12,8 +12,14 @@ class thread_safe_queue {
   using holder_type = std::conditional_t<std::is_default_constructible_v<T>, T, std::optional<T>>;
 
   struct item {
-    std::atomic<item *> next;
-    holder_type value;
+    std::atomic<item *> next {nullptr};
+    holder_type value {};
+    
+    item() = default;
+
+    template<class U>
+    explicit item (U&& val):value(std::forward<U>(val)) {}
+
   };
 
   std::atomic<item *> first;
@@ -22,8 +28,6 @@ class thread_safe_queue {
   public:
   static item * make_stub() {
     auto initial_item = new item;
-    initial_item->next.store(0,std::memory_order_relaxed);
-    initial_item->value = holder_type();
     return initial_item; 
   }
 
@@ -37,8 +41,12 @@ class thread_safe_queue {
 
   //destructor is not thread safe
   ~thread_safe_queue() {
-    while (pop_front()) ;
-    delete first.load(std::memory_order_relaxed);
+    auto old_first = first.load(std::memory_order_relaxed);
+    do {
+      auto old_next = old_first->next.load(std::memory_order_relaxed);
+      delete old_first;
+      old_first = old_next;
+    } while(old_first);
   }
 
   template<class U> void push_back(U&& elem) {
@@ -63,12 +71,17 @@ class thread_safe_queue {
       if (!old_next) {
         return std::nullopt; // Queue is empty
       }
-    } while (!first.compare_exchange_weak(old_first, old_next, std::memory_order_acq_rel, std::memory_order_acquire));
+    } while (!first.compare_exchange_weak(old_first, old_next, std::memory_order_acq_rel, std::memory_order_acquire         ));
 
-    auto res = old_first->value;
+    auto res = std::move(old_first->value);
     delete old_first;
     return res;
   }
+
+  thread_safe_queue(const thread_safe_queue&) = delete;
+  thread_safe_queue& operator=(const thread_safe_queue&) = delete;
+  thread_safe_queue(thread_safe_queue&&) = delete;
+  thread_safe_queue& operator=(thread_safe_queue&&) = delete;
 };
 
 #endif
