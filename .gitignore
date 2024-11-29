@@ -2,5 +2,5 @@
 /dispatcher.h.gch
 a.exe
 a.out
-cachegrind.out.5191
-callgrind.out.5201
+cachegrind.out.*
+callgrind.out.*
