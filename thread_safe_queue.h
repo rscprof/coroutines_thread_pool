@@ -66,13 +66,17 @@ class thread_safe_queue {
     item * old_first;
     item * old_next;
     do {
-      old_first = first.load(std::memory_order_acquire);
-      old_next = old_first->next.load(std::memory_order_relaxed);
-      if (!old_next) {
+      do {
+        old_first = first.load(std::memory_order_acquire);
+      } while (!first.compare_exchange_weak(old_first, 0, std::memory_order_acq_rel, std::memory_order_acquire         ));
+    } while (!old_first);
+    old_next = old_first->next.load(std::memory_order_relaxed);
+    if (!old_next) {
+        first.store(old_first,std::memory_order_release);
         return std::nullopt; // Queue is empty
-      }
-    } while (!first.compare_exchange_weak(old_first, old_next, std::memory_order_acq_rel, std::memory_order_acquire         ));
+    }
 
+    first.store(old_next,std::memory_order_release);
     auto res = std::move(old_first->value);
     delete old_first;
     return res;
